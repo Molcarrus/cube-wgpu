@@ -7,6 +7,8 @@ use winit::{
     window::{Window, WindowId},
 };
 
+use crate::renderer::Renderer;
+
 mod camera;
 mod mesh;
 mod renderer;
@@ -20,6 +22,7 @@ struct State {
     surface: wgpu::Surface<'static>,
     surface_format: wgpu::TextureFormat,
     depth_texture_view: wgpu::TextureView,
+    renderer: Renderer,
 }
 
 impl State {
@@ -44,6 +47,9 @@ impl State {
 
         let depth_texture_view = Self::create_depth_texture(&device, size.width, size.height);
 
+        let aspect = size.width as f32 / size.height as f32;
+        let renderer = Renderer::new(&device, surface_format, aspect);
+
         let state = State {
             instance,
             window,
@@ -53,6 +59,7 @@ impl State {
             surface,
             surface_format,
             depth_texture_view,
+            renderer,
         };
 
         state.configure_surface();
@@ -135,36 +142,38 @@ impl State {
             });
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
-        let renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: None,
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &texture_view,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.15,
-                        g: 0.15,
-                        b: 0.20,
-                        a: 1.00,
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Main Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &texture_view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.15,
+                            g: 0.15,
+                            b: 0.20,
+                            a: 1.00,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
                     }),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.depth_texture_view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: wgpu::StoreOp::Store,
+                    stencil_ops: None,
                 }),
-                stencil_ops: None,
-            }),
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
 
-        drop(renderpass);
+            self.renderer.draw(&mut pass);
+        }
 
         self.queue.submit([encoder.finish()]);
         self.window.pre_present_notify();
