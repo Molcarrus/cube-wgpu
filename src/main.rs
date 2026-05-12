@@ -1,13 +1,13 @@
-use std::sync::Arc;
+use std::{f64::consts::FRAC_PI_2, sync::Arc};
 
 use winit::{
     application::ApplicationHandler,
-    event::WindowEvent,
+    event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, OwnedDisplayHandle},
     window::{Window, WindowId},
 };
 
-use crate::{cube::RubiksCube, renderer::Renderer};
+use crate::{camera::Camera, cube::RubiksCube, renderer::Renderer};
 
 mod camera;
 mod cube;
@@ -24,6 +24,9 @@ struct State {
     surface_format: wgpu::TextureFormat,
     depth_texture_view: wgpu::TextureView,
     renderer: Renderer,
+    camera: Camera,
+    mouse_pressed: bool,
+    last_mouse_pos: Option<(f64, f64)>,
 }
 
 impl State {
@@ -50,6 +53,7 @@ impl State {
 
         let cube = RubiksCube::new();
         let aspect = size.width as f32 / size.height as f32;
+        let camera = Camera::new(aspect);
         let renderer = Renderer::new(&device, surface_format, aspect, &cube);
 
         let state = State {
@@ -62,6 +66,9 @@ impl State {
             surface_format,
             depth_texture_view,
             renderer,
+            camera,
+            mouse_pressed: false,
+            last_mouse_pos: None,
         };
 
         state.configure_surface();
@@ -114,7 +121,47 @@ impl State {
             Self::create_depth_texture(&self.device, new_size.width, new_size.height);
     }
 
+    fn on_mouse_button(&mut self, button: MouseButton, state: ElementState) {
+        if button == MouseButton::Left {
+            self.mouse_pressed = state == ElementState::Pressed;
+
+            if !self.mouse_pressed {
+                self.last_mouse_pos = None;
+            }
+        }
+    }
+
+    fn on_mouse_moved(&mut self, x: f64, y: f64) {
+        if !self.mouse_pressed {
+            return;
+        }
+
+        if let Some((lx, ly)) = self.last_mouse_pos {
+            let dx = (x - lx) as f32;
+            let dy = (y - ly) as f32;
+
+            self.camera.yaw -= dx * 0.005;
+
+            self.camera.pitch += dy * 0.005;
+            self.camera.pitch = self.camera.pitch.clamp(-std::f32::consts::FRAC_PI_2 + 0.05, std::f32::consts::FRAC_PI_2 - 0.05);
+        }
+
+        self.last_mouse_pos = Some((x, y));
+    }
+
+    fn on_scroll(&mut self, delta: MouseScrollDelta) {
+        let scroll = match delta {
+            MouseScrollDelta::LineDelta(_x, y) => y,
+            MouseScrollDelta::PixelDelta(pos) => pos.y as f32 * 0.05,
+        };
+
+        self.camera.distance -= scroll * 0.5;
+        self.camera.distance = self.camera.distance.clamp(3.0, 30.0);
+    }
+
     fn render(&mut self) {
+        self.renderer.update_camera(&self.queue, &self.camera);
+        
         let surface_texture = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(texture) => texture,
             wgpu::CurrentSurfaceTexture::Occluded | wgpu::CurrentSurfaceTexture::Timeout => return,
@@ -218,6 +265,15 @@ impl ApplicationHandler for App {
             }
             WindowEvent::Resized(size) => {
                 state.resize(size);
+            }
+            WindowEvent::MouseInput { state: btn_state, button, .. } => {
+                state.on_mouse_button(button, btn_state);
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                state.on_mouse_moved(position.x, position.y);
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                state.on_scroll(delta);
             }
             _ => (),
         }

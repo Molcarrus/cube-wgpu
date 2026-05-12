@@ -1,6 +1,5 @@
-use bytemuck::{Pod, Zeroable};
-
 use crate::cube::Cubie;
+use bytemuck::{Pod, Zeroable};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
@@ -39,22 +38,23 @@ impl Vertex {
 pub fn generate_cubie_mesh(cubie: &Cubie) -> (Vec<Vertex>, Vec<u16>) {
     let s = 0.48_f32;
 
-    let faces = &[
+    let faces: &[([f32; 3], [[f32; 3]; 4], usize)] = &[
+        // +X  Green
         (
             [1.0, 0.0, 0.0],
-            [[s, -s, -s], [s, -s, s], [s, s, s], [s, s, -s]],
+            [[s, -s, -s], [s, s, -s], [s, s, s], [s, -s, s]],
             0,
         ),
         // -X  Blue
         (
             [-1.0, 0.0, 0.0],
-            [[-s, -s, s], [-s, -s, -s], [-s, s, -s], [-s, s, s]],
+            [[-s, -s, s], [-s, s, s], [-s, s, -s], [-s, -s, -s]],
             1,
         ),
         // +Y  White
         (
             [0.0, 1.0, 0.0],
-            [[-s, s, -s], [s, s, -s], [s, s, s], [-s, s, s]],
+            [[-s, s, s], [s, s, s], [s, s, -s], [-s, s, -s]],
             2,
         ),
         // -Y  Yellow
@@ -66,19 +66,19 @@ pub fn generate_cubie_mesh(cubie: &Cubie) -> (Vec<Vertex>, Vec<u16>) {
         // +Z  Red
         (
             [0.0, 0.0, 1.0],
-            [[-s, -s, s], [-s, s, s], [s, s, s], [s, -s, s]],
+            [[s, -s, s], [s, s, s], [-s, s, s], [-s, -s, s]],
             4,
         ),
         // -Z  Orange
         (
             [0.0, 0.0, -1.0],
-            [[s, -s, -s], [s, s, -s], [-s, s, -s], [-s, -s, -s]],
+            [[-s, -s, -s], [-s, s, -s], [s, s, -s], [s, -s, -s]],
             5,
         ),
     ];
 
-    let mut vertices = Vec::new();
-    let mut indices = Vec::new();
+    let mut vertices: Vec<Vertex> = Vec::new();
+    let mut indices: Vec<u16> = Vec::new();
 
     for (normal, corners, color_idx) in faces {
         let base = vertices.len() as u16;
