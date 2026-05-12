@@ -7,6 +7,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
+mod camera;
 mod mesh;
 
 struct State {
