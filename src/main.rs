@@ -10,6 +10,7 @@ use winit::{
 use crate::renderer::Renderer;
 
 mod camera;
+mod cube;
 mod mesh;
 mod renderer;
 
