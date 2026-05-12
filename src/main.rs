@@ -9,6 +9,7 @@ use winit::{
 
 mod camera;
 mod mesh;
+mod renderer;
 
 struct State {
     instance: wgpu::Instance,
