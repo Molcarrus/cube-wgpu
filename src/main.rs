@@ -7,6 +7,8 @@ use winit::{
     window::{Window, WindowId},
 };
 
+mod mesh;
+
 struct State {
     instance: wgpu::Instance,
     window: Arc<Window>,
