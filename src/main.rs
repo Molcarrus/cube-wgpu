@@ -7,7 +7,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::renderer::Renderer;
+use crate::{cube::RubiksCube, renderer::Renderer};
 
 mod camera;
 mod cube;
@@ -48,8 +48,9 @@ impl State {
 
         let depth_texture_view = Self::create_depth_texture(&device, size.width, size.height);
 
+        let cube = RubiksCube::new();
         let aspect = size.width as f32 / size.height as f32;
-        let renderer = Renderer::new(&device, surface_format, aspect);
+        let renderer = Renderer::new(&device, surface_format, aspect, &cube);
 
         let state = State {
             instance,
