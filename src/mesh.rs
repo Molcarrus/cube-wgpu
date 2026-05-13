@@ -60,7 +60,7 @@ pub fn generate_cubie_mesh(cubie: &Cubie) -> (Vec<Vertex>, Vec<u16>) {
         // -Y  Yellow
         (
             [0.0, -1.0, 0.0],
-            [[-s, -s, s], [s, -s, s], [s, -s, -s], [-s, -s, -s]],
+            [[-s, -s, -s], [s, -s, -s], [s, -s, s], [-s, -s, s]],
             3,
         ),
         // +Z  Red

@@ -242,34 +242,35 @@ impl RubiksCube {
 }
 
 fn permute_colors(c: [FaceColor; 6], face: Face, clockwise: bool) -> [FaceColor; 6] {
+    // Index reference:
+    // 0=+X  1=-X  2=+Y  3=-Y  4=+Z  5=-Z
+
     let [px, nx, py, ny, pz, nz] = c;
 
     match (face, clockwise) {
-        // Rotating around +X axis
-        // CW from +X: +Y→+Z, +Z→-Y, -Y→-Z, -Z→+Y
-        (Face::Right, true) => [px, nx, nz, pz, py, ny],
-        (Face::Right, false) => [px, nx, pz, nz, ny, py],
+        // CW looking from +X: +Y goes to +Z, +Z goes to -Y, -Y goes to -Z, -Z goes to +Y
+        // new[+X,-X, +Y, -Y, +Z, -Z]
+        (Face::Right, true)  => [px, nx,  nz, pz,  py, ny],
+        (Face::Right, false) => [px, nx,  pz, nz,  ny, py],
 
-        // Rotating around -X axis (opposite spin)
-        (Face::Left, true) => [px, nx, pz, nz, ny, py],
-        (Face::Left, false) => [px, nx, nz, pz, py, ny],
+        // Left is -X axis, CW from outside = CCW around +X
+        (Face::Left,  true)  => [px, nx,  pz, nz,  ny, py],
+        (Face::Left,  false) => [px, nx,  nz, pz,  py, ny],
 
-        // Rotating around +Y axis
-        // CW from +Y: +Z→+X, +X→-Z, -Z→-X, -X→+Z
-        (Face::Up, true) => [pz, nz, py, ny, nx, px],
-        (Face::Up, false) => [nz, pz, py, ny, px, nx],
+        // CW looking from +Y: +Z goes to +X, +X goes to -Z, -Z goes to -X, -X goes to +Z
+        (Face::Up,   true)  => [ pz, nz, py, ny,  nx, px],
+        (Face::Up,   false) => [ nz, pz, py, ny,  px, nx],
 
-        // Rotating around -Y axis
-        (Face::Down, true) => [nz, pz, py, ny, px, nx],
-        (Face::Down, false) => [pz, nz, py, ny, nx, px],
+        // Down is -Y axis, CW from outside = CCW around +Y
+        (Face::Down, true)  => [ nz, pz, py, ny,  px, nx],
+        (Face::Down, false) => [ pz, nz, py, ny,  nx, px],
 
-        // Rotating around +Z axis
-        // CW from +Z: +Y→-X, -X→-Y, -Y→+X, +X→+Y
-        (Face::Front, true) => [py, ny, nx, px, pz, nz],
-        (Face::Front, false) => [ny, py, px, nx, pz, nz],
+        // CW looking from +Z: +X goes to +Y, +Y goes to -X, -X goes to -Y, -Y goes to +X
+        (Face::Front, true)  => [ py, ny,  nx, px,  pz, nz],
+        (Face::Front, false) => [ ny, py,  px, nx,  pz, nz],
 
-        // Rotating around -Z axis
-        (Face::Back, true) => [ny, py, px, nx, pz, nz],
-        (Face::Back, false) => [py, ny, nx, px, pz, nz],
+        // Back is -Z axis, CW from outside = CCW around +Z
+        (Face::Back,  true)  => [ ny, py,  px, nx,  pz, nz],
+        (Face::Back,  false) => [ py, ny,  nx, px,  pz, nz],
     }
 }
