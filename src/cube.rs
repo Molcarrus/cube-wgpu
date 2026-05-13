@@ -1,3 +1,5 @@
+use glam::{Mat4, Quat, Vec3};
+
 #[derive(Clone, Copy, Debug)]
 pub enum FaceColor {
     White,
@@ -23,16 +25,57 @@ impl FaceColor {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Face {
+    Right,
+    Left,
+    Up,
+    Down,
+    Front,
+    Back,
+}
+
+impl Face {
+    pub fn axis(self) -> Vec3 {
+        match self {
+            Face::Right => Vec3::X,
+            Face::Left => Vec3::NEG_X,
+            Face::Up => Vec3::Y,
+            Face::Down => Vec3::NEG_Y,
+            Face::Front => Vec3::Z,
+            Face::Back => Vec3::NEG_Z,
+        }
+    }
+
+    pub fn layer(self) -> (usize, i32) {
+        match self {
+            Face::Right => (0, 1),
+            Face::Left => (0, -1),
+            Face::Up => (1, 1),
+            Face::Down => (1, -1),
+            Face::Front => (2, 1),
+            Face::Back => (2, -1),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Cubie {
     pub grid_pos: [i32; 3],
+    pub transform: Mat4,
     pub face_colors: [FaceColor; 6],
 }
 
 impl Cubie {
     pub fn new(x: i32, y: i32, z: i32) -> Self {
+        let spacing = 1.05_f32;
         Self {
             grid_pos: [x, y, z],
+            transform: Mat4::from_translation(Vec3::new(
+                x as f32 * spacing,
+                y as f32 * spacing,
+                z as f32 * spacing,
+            )),
             face_colors: [
                 if x == 1 {
                     FaceColor::Green
@@ -69,8 +112,16 @@ impl Cubie {
     }
 }
 
+struct Animation {
+    face: Face,
+    clockwise: bool,
+    angle: f32,
+}
+
 pub struct RubiksCube {
     pub cubies: Vec<Cubie>,
+    anim: Option<Animation>,
+    anim_speed: f32,
 }
 
 impl RubiksCube {
@@ -88,6 +139,137 @@ impl RubiksCube {
             }
         }
 
-        Self { cubies }
+        Self {
+            cubies,
+            anim: None,
+            anim_speed: std::f32::consts::PI * 2.5,
+        }
+    }
+
+    pub fn is_animating(&self) -> bool {
+        self.anim.is_some()
+    }
+
+    pub fn rotate_face(&mut self, face: Face, clockwise: bool) {
+        if self.anim.is_some() {
+            return;
+        }
+        self.anim = Some(Animation {
+            face,
+            clockwise,
+            angle: 0.0,
+        })
+    }
+
+    pub fn update(&mut self, dt: f32) {
+        let Some(anim) = self.anim.as_mut() else {
+            return;
+        };
+
+        let target = std::f32::consts::FRAC_PI_2;
+        anim.angle += self.anim_speed * dt;
+
+        if anim.angle >= target {
+            let face = anim.face;
+            let clockwise = anim.clockwise;
+            self.anim = None;
+            self.finalize_rotation(face, clockwise);
+        }
+    }
+
+    pub fn anim_rotation(&self) -> Option<(Mat4, Face)> {
+        let anim = self.anim.as_ref()?;
+
+        let angle = if anim.clockwise {
+            -anim.angle
+        } else {
+            anim.angle
+        };
+        let mat = Mat4::from_axis_angle(anim.face.axis(), angle);
+
+        Some((mat, anim.face))
+    }
+
+    pub fn is_in_anim_face(&self, cubie_index: usize) -> bool {
+        let Some(anim) = &self.anim else { return false };
+        self.cubie_in_face(cubie_index, anim.face)
+    }
+
+    fn cubie_in_face(&self, index: usize, face: Face) -> bool {
+        let (axis, val) = face.layer();
+        self.cubies[index].grid_pos[axis] == val
+    }
+
+    fn indices_in_face(&self, face: Face) -> Vec<usize> {
+        let (axis, val) = face.layer();
+        self.cubies
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.grid_pos[axis] == val)
+            .map(|(i, _)| i)
+            .collect()
+    }
+
+    fn finalize_rotation(&mut self, face: Face, clockwise: bool) {
+        let angle = if clockwise {
+            -std::f32::consts::FRAC_PI_2
+        } else {
+            std::f32::consts::FRAC_PI_2
+        };
+        let rot_mat = Mat4::from_axis_angle(face.axis(), angle);
+        let rot_quat = Quat::from_axis_angle(face.axis(), angle);
+
+        for i in self.indices_in_face(face) {
+            let cubie = &mut self.cubies[i];
+
+            cubie.transform = rot_mat * cubie.transform;
+
+            let old_pos = Vec3::new(
+                cubie.grid_pos[0] as f32,
+                cubie.grid_pos[1] as f32,
+                cubie.grid_pos[2] as f32,
+            );
+            let new_pos = rot_quat * old_pos;
+            cubie.grid_pos = [
+                new_pos.x.round() as i32,
+                new_pos.y.round() as i32,
+                new_pos.z.round() as i32,
+            ];
+
+            cubie.face_colors = permute_colors(cubie.face_colors, face, clockwise);
+        }
+    }
+}
+
+fn permute_colors(c: [FaceColor; 6], face: Face, clockwise: bool) -> [FaceColor; 6] {
+    let [px, nx, py, ny, pz, nz] = c;
+
+    match (face, clockwise) {
+        // Rotating around +X axis
+        // CW from +X: +Y→+Z, +Z→-Y, -Y→-Z, -Z→+Y
+        (Face::Right, true) => [px, nx, nz, pz, py, ny],
+        (Face::Right, false) => [px, nx, pz, nz, ny, py],
+
+        // Rotating around -X axis (opposite spin)
+        (Face::Left, true) => [px, nx, pz, nz, ny, py],
+        (Face::Left, false) => [px, nx, nz, pz, py, ny],
+
+        // Rotating around +Y axis
+        // CW from +Y: +Z→+X, +X→-Z, -Z→-X, -X→+Z
+        (Face::Up, true) => [pz, nz, py, ny, nx, px],
+        (Face::Up, false) => [nz, pz, py, ny, px, nx],
+
+        // Rotating around -Y axis
+        (Face::Down, true) => [nz, pz, py, ny, px, nx],
+        (Face::Down, false) => [pz, nz, py, ny, nx, px],
+
+        // Rotating around +Z axis
+        // CW from +Z: +Y→-X, -X→-Y, -Y→+X, +X→+Y
+        (Face::Front, true) => [py, ny, nx, px, pz, nz],
+        (Face::Front, false) => [ny, py, px, nx, pz, nz],
+
+        // Rotating around -Z axis
+        (Face::Back, true) => [ny, py, px, nx, pz, nz],
+        (Face::Back, false) => [py, ny, nx, px, pz, nz],
     }
 }

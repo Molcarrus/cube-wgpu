@@ -10,18 +10,29 @@ pub struct Camera {
 
 impl Camera {
     pub fn new(aspect: f32) -> Self {
-        Self { yaw: std::f32::consts::FRAC_PI_4, pitch: 0.4, distance: 8.0, aspect }
+        Self {
+            yaw: std::f32::consts::FRAC_PI_4,
+            pitch: 0.4,
+            distance: 8.0,
+            aspect,
+        }
     }
 
     fn eye(&self) -> Vec3 {
-        Vec3::new(self.distance * self.pitch.cos() * self.yaw.sin(), self.distance * self.pitch.sin(), self.distance * self.pitch.cos() * self.yaw.cos())
+        Vec3::new(
+            self.distance * self.pitch.cos() * self.yaw.sin(),
+            self.distance * self.pitch.sin(),
+            self.distance * self.pitch.cos() * self.yaw.cos(),
+        )
     }
 
     pub fn build_uniform(&self) -> CameraUniform {
         let view = Mat4::look_at_rh(self.eye(), Vec3::ZERO, Vec3::Y);
         let proj = Mat4::perspective_rh(45_f32.to_radians(), self.aspect, 0.1, 100.0);
 
-        CameraUniform { view_proj: (proj * view).to_cols_array_2d() }
+        CameraUniform {
+            view_proj: (proj * view).to_cols_array_2d(),
+        }
     }
 }
 

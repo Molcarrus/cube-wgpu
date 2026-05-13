@@ -1,8 +1,7 @@
-use glam::{Mat4, Vec3};
+use glam::Mat4;
 use wgpu::util::DeviceExt;
 
 use crate::{
-    camera::{self, CameraUniform},
     cube::RubiksCube,
     mesh::{Vertex, generate_cubie_mesh},
 };
@@ -12,7 +11,7 @@ struct CubieGpu {
     index_buffer: wgpu::Buffer,
     num_indices: u32,
     model_bind_group: wgpu::BindGroup,
-    _model_buffer: wgpu::Buffer,
+    model_buffer: wgpu::Buffer,
 }
 
 pub struct Renderer {
@@ -49,12 +48,10 @@ impl Renderer {
             }],
         });
 
-        let camera_uniform = crate::camera::CameraUniform {
-            view_proj: glam::Mat4::IDENTITY.to_cols_array_2d()
-        };
+        let camera_data = Mat4::IDENTITY.to_cols_array_2d();
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
-            contents: bytemuck::bytes_of(&camera_uniform),
+            contents: bytemuck::bytes_of(&camera_data),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -128,7 +125,7 @@ impl Renderer {
         let cubies = cube
             .cubies
             .iter()
-            .map(|cubie| Self::build_cubie_gpu(device, &model_bgl, cubie))
+            .map(|c| Self::create_cubie_gpu(device, &model_bgl, c, Mat4::IDENTITY))
             .collect::<Vec<_>>();
 
         Self {
@@ -140,10 +137,11 @@ impl Renderer {
         }
     }
 
-    fn build_cubie_gpu(
+    fn create_cubie_gpu(
         device: &wgpu::Device,
         model_bgl: &wgpu::BindGroupLayout,
         cubie: &crate::cube::Cubie,
+        model: Mat4,
     ) -> CubieGpu {
         let (vertices, indices) = generate_cubie_mesh(cubie);
 
@@ -158,14 +156,6 @@ impl Renderer {
             contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::INDEX,
         });
-
-        let [x, y, z] = cubie.grid_pos;
-        let spacing = 1.05_f32;
-        let model = Mat4::from_translation(Vec3::new(
-            x as f32 * spacing,
-            y as f32 * spacing,
-            z as f32 * spacing,
-        ));
 
         let model_data = model.to_cols_array_2d();
 
@@ -189,13 +179,36 @@ impl Renderer {
             index_buffer,
             num_indices: indices.len() as u32,
             model_bind_group,
-            _model_buffer: model_buffer,
+            model_buffer,
         }
     }
 
     pub fn update_camera(&self, queue: &wgpu::Queue, camera: &crate::camera::Camera) {
         let uniform = camera.build_uniform();
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&uniform));
+    }
+
+    pub fn update_cubies(&mut self, queue: &wgpu::Queue, cube: &RubiksCube) {
+        let anim = cube.anim_rotation();
+
+        for (i, cubie) in cube.cubies.iter().enumerate() {
+            let model = if cube.is_in_anim_face(i) {
+                if let Some((rot, _)) = anim {
+                    rot * cubie.transform
+                } else {
+                    cubie.transform
+                }
+            } else {
+                cubie.transform
+            };
+
+            let model_data = model.to_cols_array_2d();
+            queue.write_buffer(
+                &self.cubies[i].model_buffer,
+                0,
+                bytemuck::cast_slice(&model_data),
+            );
+        }
     }
 
     pub fn draw<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>) {
