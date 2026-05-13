@@ -1,3 +1,8 @@
+use std::{
+    collections::VecDeque,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
 use glam::{Mat4, Quat, Vec3};
 
 #[derive(Clone, Copy, Debug)]
@@ -122,6 +127,7 @@ pub struct RubiksCube {
     pub cubies: Vec<Cubie>,
     anim: Option<Animation>,
     anim_speed: f32,
+    move_queue: VecDeque<(Face, bool)>,
 }
 
 impl RubiksCube {
@@ -143,37 +149,92 @@ impl RubiksCube {
             cubies,
             anim: None,
             anim_speed: std::f32::consts::PI * 2.5,
+            move_queue: VecDeque::new(),
         }
     }
 
-    pub fn is_animating(&self) -> bool {
-        self.anim.is_some()
+    // pub fn is_animating(&self) -> bool {
+    //     self.anim.is_some()
+    // }
+
+    pub fn queue_move(&mut self, face: Face, clockwise: bool) {
+        self.move_queue.push_back((face, clockwise));
     }
 
     pub fn rotate_face(&mut self, face: Face, clockwise: bool) {
-        if self.anim.is_some() {
-            return;
+        if self.anim.is_none() {
+            self.anim = Some(Animation {
+                face,
+                clockwise,
+                angle: 0.0,
+            });
+        } else {
+            self.move_queue.push_back((face, clockwise));
         }
-        self.anim = Some(Animation {
-            face,
-            clockwise,
-            angle: 0.0,
-        })
+    }
+
+    pub fn shuffle(&mut self) {
+        let seed = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .subsec_nanos();
+
+        let mut rng = Lcg::new(seed as u64);
+
+        let faces = [
+            Face::Right,
+            Face::Left,
+            Face::Up,
+            Face::Down,
+            Face::Front,
+            Face::Back,
+        ];
+
+        let mut last_face = None;
+        let mut count = 0;
+
+        while count < 20 {
+            let face_idx = rng.next_u64() as usize % 6;
+            let clockwise = rng.next_u64() as usize == 0;
+            let face = faces[face_idx];
+
+            if Some(face) == last_face {
+                continue;
+            }
+
+            self.queue_move(face, clockwise);
+            last_face = Some(face);
+            count += 1;
+        }
     }
 
     pub fn update(&mut self, dt: f32) {
-        let Some(anim) = self.anim.as_mut() else {
-            return;
-        };
+        if let Some(anim) = self.anim.as_mut() {
+            let target = std::f32::consts::FRAC_PI_2;
+            anim.angle += self.anim_speed * dt;
 
-        let target = std::f32::consts::FRAC_PI_2;
-        anim.angle += self.anim_speed * dt;
+            if anim.angle >= target {
+                let face = anim.face;
+                let clockwise = anim.clockwise;
+                self.anim = None;
+                self.finalize_rotation(face, clockwise);
 
-        if anim.angle >= target {
-            let face = anim.face;
-            let clockwise = anim.clockwise;
-            self.anim = None;
-            self.finalize_rotation(face, clockwise);
+                if let Some((next_face, next_cw)) = self.move_queue.pop_front() {
+                    self.anim = Some(Animation {
+                        face: next_face,
+                        clockwise: next_cw,
+                        angle: 0.0,
+                    });
+                }
+            }
+        } else {
+            if let Some((face, clockwise)) = self.move_queue.pop_front() {
+                self.anim = Some(Animation {
+                    face,
+                    clockwise,
+                    angle: 0.0,
+                });
+            }
         }
     }
 
@@ -250,27 +311,48 @@ fn permute_colors(c: [FaceColor; 6], face: Face, clockwise: bool) -> [FaceColor;
     match (face, clockwise) {
         // CW looking from +X: +Y goes to +Z, +Z goes to -Y, -Y goes to -Z, -Z goes to +Y
         // new[+X,-X, +Y, -Y, +Z, -Z]
-        (Face::Right, true)  => [px, nx,  nz, pz,  py, ny],
-        (Face::Right, false) => [px, nx,  pz, nz,  ny, py],
+        (Face::Right, true) => [px, nx, nz, pz, py, ny],
+        (Face::Right, false) => [px, nx, pz, nz, ny, py],
 
         // Left is -X axis, CW from outside = CCW around +X
-        (Face::Left,  true)  => [px, nx,  pz, nz,  ny, py],
-        (Face::Left,  false) => [px, nx,  nz, pz,  py, ny],
+        (Face::Left, true) => [px, nx, pz, nz, ny, py],
+        (Face::Left, false) => [px, nx, nz, pz, py, ny],
 
         // CW looking from +Y: +Z goes to +X, +X goes to -Z, -Z goes to -X, -X goes to +Z
-        (Face::Up,   true)  => [ pz, nz, py, ny,  nx, px],
-        (Face::Up,   false) => [ nz, pz, py, ny,  px, nx],
+        (Face::Up, true) => [pz, nz, py, ny, nx, px],
+        (Face::Up, false) => [nz, pz, py, ny, px, nx],
 
         // Down is -Y axis, CW from outside = CCW around +Y
-        (Face::Down, true)  => [ nz, pz, py, ny,  px, nx],
-        (Face::Down, false) => [ pz, nz, py, ny,  nx, px],
+        (Face::Down, true) => [nz, pz, py, ny, px, nx],
+        (Face::Down, false) => [pz, nz, py, ny, nx, px],
 
         // CW looking from +Z: +X goes to +Y, +Y goes to -X, -X goes to -Y, -Y goes to +X
-        (Face::Front, true)  => [ py, ny,  nx, px,  pz, nz],
-        (Face::Front, false) => [ ny, py,  px, nx,  pz, nz],
+        (Face::Front, true) => [py, ny, nx, px, pz, nz],
+        (Face::Front, false) => [ny, py, px, nx, pz, nz],
 
         // Back is -Z axis, CW from outside = CCW around +Z
-        (Face::Back,  true)  => [ ny, py,  px, nx,  pz, nz],
-        (Face::Back,  false) => [ py, ny,  nx, px,  pz, nz],
+        (Face::Back, true) => [ny, py, px, nx, pz, nz],
+        (Face::Back, false) => [py, ny, nx, px, pz, nz],
+    }
+}
+
+struct Lcg {
+    state: u64,
+}
+
+impl Lcg {
+    fn new(seed: u64) -> Self {
+        Self {
+            state: if seed == 0 { 12345 } else { seed },
+        }
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+
+        self.state
     }
 }

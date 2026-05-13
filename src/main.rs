@@ -129,10 +129,6 @@ impl State {
     }
 
     fn on_key(&mut self, key: KeyCode, shift: bool) {
-        if self.cube.is_animating() {
-            return;
-        }
-
         match key {
             KeyCode::KeyR => self.cube.rotate_face(cube::Face::Right, !shift),
             KeyCode::KeyL => self.cube.rotate_face(cube::Face::Left, !shift),
@@ -140,6 +136,7 @@ impl State {
             KeyCode::KeyD => self.cube.rotate_face(cube::Face::Down, !shift),
             KeyCode::KeyF => self.cube.rotate_face(cube::Face::Front, !shift),
             KeyCode::KeyB => self.cube.rotate_face(cube::Face::Back, !shift),
+            KeyCode::KeyS => self.cube.shuffle(),
             _ => {}
         }
     }
