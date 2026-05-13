@@ -18,7 +18,7 @@ pub struct Renderer {
     pipeline: wgpu::RenderPipeline,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
-    model_bgl: wgpu::BindGroupLayout,
+    _model_bgl: wgpu::BindGroupLayout,
     cubies: Vec<CubieGpu>,
 }
 
@@ -26,7 +26,7 @@ impl Renderer {
     pub fn new(
         device: &wgpu::Device,
         surface_format: wgpu::TextureFormat,
-        aspect: f32,
+        _aspect: f32,
         cube: &RubiksCube,
     ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -132,7 +132,7 @@ impl Renderer {
             pipeline,
             camera_buffer,
             camera_bind_group,
-            model_bgl,
+            _model_bgl: model_bgl,
             cubies,
         }
     }
