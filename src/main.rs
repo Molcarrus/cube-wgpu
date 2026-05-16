@@ -14,6 +14,7 @@ mod camera;
 mod cube;
 mod mesh;
 mod renderer;
+mod solver;
 
 struct State {
     instance: wgpu::Instance,
