@@ -447,3 +447,88 @@ impl CubeState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn solved_is_solved() {
+        assert!(CubeState::solved().is_solved());
+    }
+
+    #[test]
+    fn four_u_moves_returns_to_solved() {
+        let mut state = CubeState::solved();
+        for _ in 0..4 {
+            state.apply_move_mut(Face::Up, true);
+        }
+        assert!(state.is_solved(), "4× U should return to solved");
+    }
+
+    #[test]
+    fn four_r_moves_returns_to_solved() {
+        let mut state = CubeState::solved();
+        for _ in 0..4 {
+            state.apply_move_mut(Face::Right, true);
+        }
+        assert!(state.is_solved(), "4× R should return to solved");
+    }
+
+    #[test]
+    fn four_f_moves_returns_to_solved() {
+        let mut state = CubeState::solved();
+        for _ in 0..4 {
+            state.apply_move_mut(Face::Front, true);
+        }
+        assert!(state.is_solved(), "4× F should return to solved");
+    }
+
+    #[test]
+    fn four_d_moves_returns_to_solved() {
+        let mut state = CubeState::solved();
+        for _ in 0..4 {
+            state.apply_move_mut(Face::Down, true);
+        }
+        assert!(state.is_solved(), "4× D should return to solved");
+    }
+
+    #[test]
+    fn four_l_moves_returns_to_solved() {
+        let mut state = CubeState::solved();
+        for _ in 0..4 {
+            state.apply_move_mut(Face::Left, true);
+        }
+        assert!(state.is_solved(), "4× L should return to solved");
+    }
+
+    #[test]
+    fn four_b_moves_returns_to_solved() {
+        let mut state = CubeState::solved();
+        for _ in 0..4 {
+            state.apply_move_mut(Face::Back, true);
+        }
+        assert!(state.is_solved(), "4× B should return to solved");
+    }
+
+    #[test]
+    fn move_then_inverse_is_solved() {
+        let mut state = CubeState::solved();
+        state.apply_move_mut(Face::Right, true);
+        state.apply_move_mut(Face::Right, false); // inverse
+        assert!(state.is_solved(), "R then R' should be solved");
+    }
+
+    #[test]
+    fn sexy_move_six_times_is_solved() {
+        // Sexy move: R U R' U' repeated 6 times = identity
+        let mut state = CubeState::solved();
+        for _ in 0..6 {
+            state.apply_move_mut(Face::Right, true);
+            state.apply_move_mut(Face::Up, true);
+            state.apply_move_mut(Face::Right, false);
+            state.apply_move_mut(Face::Up, false);
+        }
+        assert!(state.is_solved(), "Sexy move ×6 should be solved");
+    }
+}
